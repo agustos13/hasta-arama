@@ -97,8 +97,7 @@
             var t = {};
             srcs.forEach(function (s, i) { t[s.code] = C.buildTable(s, (res.valueRanges[i] || {}).values, gid[s.sheet]); });
             tables = t; loadedAt = Date.now();
-            var n = srcs.reduce(function (a, s) { return a + t[s.code].rows.length; }, 0);
-            setStatus(n.toLocaleString('tr-TR') + ' kayıt yüklendi · ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+            showUpdated();
             return t;
           });
       })
@@ -161,6 +160,19 @@
   }
   function dash(s) { return String(s || '').trim() || '—'; }
   function setStatus(t) { statusEl.textContent = t || ''; }
+  // "Son güncelleme bugün 14:35" / "Son güncelleme dün 23:50" / "Son güncelleme 12.11.2026 09:10"
+  function showUpdated() {
+    if (!loadedAt) return;
+    var d = new Date(loadedAt), now = new Date();
+    var day = function (x) { return new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime(); };
+    var diff = Math.round((day(now) - day(d)) / 86400000);
+    var when = diff === 0 ? 'bugün' : diff === 1 ? 'dün' : d.toLocaleDateString('tr-TR');
+    setStatus('Son güncelleme ' + when + ' ' + d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+  }
+  // Uygulama arka planda kalıp gün değişirse yazı da güncellensin
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && loadedAt && statusEl.textContent.indexOf('Son güncelleme') === 0) showUpdated();
+  });
 
   function showLogin(msg) {
     document.body.classList.add('signed-out');
