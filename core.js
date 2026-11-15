@@ -110,12 +110,12 @@
       if (sp) key += '|' + sp.idx;
       if (!groups[key]) {
         groups[key] = { name: '', nameCounts: {}, protocols: [], items: {}, label: sp ? sp.label : '', hit: false,
-                        splitNn: sp ? x.nn : '', splitIdx: sp ? sp.idx : -1 };
+                        splitNn: sp ? x.nn : '', splitIdx: sp ? sp.idx : -1, nns: {} };
         order.push(key);
       }
       var g = groups[key];
       if (m.isProtocol && protoHit(x, m)) g.hit = true;
-      if (x.nn.length >= 3) g.nameCounts[x.name] = (g.nameCounts[x.name] || 0) + 1;
+      if (x.nn.length >= 3) { g.nameCounts[x.name] = (g.nameCounts[x.name] || 0) + 1; g.nns[x.nn] = 1; }
       if (x.proto && x.pd && !g.protocols.some(function (p) { return p.h === t.code && p.p === x.proto; })) g.protocols.push({ h: t.code, p: x.proto });
       (g.items[t.code] = g.items[t.code] || []).push(x.rec);
     }
@@ -213,6 +213,7 @@
     if (r.order.length) {
       return finish(r, function (g) {
         g.hospitalList = SOURCES.filter(function (s) { return g.items[s.code]; }).map(function (s) { return { code: s.code, ops: g.items[s.code] }; });
+        g.postOp = postOpVisits(g, tables.POL);
       }, extra, findKonsey).then(function (p) { return { mode: 'surgery', patients: p, total: r.order.length }; });
     }
     r = groupMatches([tables.PLAN], m, idNames);
@@ -230,6 +231,23 @@
     });
   }
 
+  /** Ameliyat olan hastanın, son ameliyat tarihinden SONRAKİ poliklinik gelişleri (protokol veya aynı isim). */
+  function postOpVisits(g, polTable) {
+    var lastOp = -Infinity;
+    g.hospitalList.forEach(function (h) { h.ops.forEach(function (o) { var t = parseDate(o.tarih); if (!isNaN(t) && t > lastOp) lastOp = t; }); });
+    if (lastOp === -Infinity || !polTable) return null;
+    var protos = {};
+    g.protocols.forEach(function (p) { var d = digits(p.p); if (d) protos[d] = 1; });
+    var list = polTable.rows.filter(function (x) {
+      var mine = (x.pd && protos[x.pd]) || (x.nn.length >= 3 && g.nns[x.nn]);
+      if (!mine) return false;
+      if (g.splitIdx >= 0 && x.nn === g.splitNn && splitOf(x).idx !== g.splitIdx) return false;
+      var t = parseDate(x.rec.tarih);
+      return !isNaN(t) && t > lastOp;
+    }).map(function (x) { return x.rec; });
+    return list.length ? { count: list.length, latest: latest(list) } : null;
+  }
+
   function finish(r, shape, extraProto, findKonsey) {
     return Promise.all(r.order.slice(0, CONFIG.MAX_PATIENTS).map(function (k, idx) {
       var g = r.groups[k];
@@ -238,7 +256,7 @@
       if (extraProto && !g.protocols.some(function (p) { return digits(p.p) === digits(extraProto); })) g.protocols.unshift({ h: '', p: extraProto });
       g.protocols.forEach(function (p) { if (p.h === 'PLAN' || p.h === 'POL') p.h = ''; });
       var splitNn = g.splitNn, splitIdx = g.splitIdx;
-      delete g.splitNn; delete g.splitIdx;
+      delete g.splitNn; delete g.splitIdx; delete g.nns;
       if (idx >= CONFIG.KONSEY_LOOKUP_LIMIT) { g.konsey = null; return Promise.resolve(g); }
       var jobs = g.protocols.map(function (p) { return findKonsey(p.p, ''); });
       jobs.push(findKonsey('', g.name.replace(/\s*#\d+\s*$/, '')).then(function (byName) {

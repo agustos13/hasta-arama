@@ -1,5 +1,5 @@
 /* Yalnızca uygulama kabuğu önbelleklenir. Hasta verisi (Google API yanıtları) ASLA önbelleğe alınmaz. */
-var CACHE = 'hasta-arama-v1';
+var CACHE = 'hasta-arama-v2';
 var SHELL = ['./', 'index.html', 'core.js', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png'];
 
 self.addEventListener('install', function (e) {

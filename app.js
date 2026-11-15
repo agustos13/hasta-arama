@@ -268,10 +268,21 @@
         fields.forEach(function (f) { html += row(f[0], f[1], f[2]); text.push(f[0] + ': ' + dash(f[1])); });
         html += link(L.url, (res.mode === 'planned' ? 'Ameliyat' : 'Poliklinik') + ' satır ' + L.row) + '</div>';
       }
-      html += '<div class="op"><div class="row"><div class="k">Konsey sonucu</div><div class="v">' + konseyHtml(p.konsey) + '</div></div></div></section>';
+      html += '<div class="op"><div class="row"><div class="k">Konsey sonucu</div><div class="v">' + konseyHtml(p.konsey) + '</div></div></div>';
       var k = p.konsey || [];
       text.push('', 'Konsey sonucu: ' + (k.length ? 'Var' + (k.length > 1 ? ' (' + k.length + ')' : '') : 'Yok'));
       k.forEach(function (f) { text.push(f.name + ': ' + f.url); });
+      if (res.mode === 'surgery' && p.postOp) {
+        var P = p.postOp.latest;
+        html += '<div class="op"><p class="lead">Hasta ameliyattan sonra polikliniğe <b>' + p.postOp.count + '</b> kez gelmiştir. Son geliş:</p>';
+        text.push('', 'Hasta ameliyattan sonra polikliniğe ' + p.postOp.count + ' kez gelmiştir. Son geliş:');
+        [['Tarih', P.tarih, true], ['Doktor', P.doktor], ['Tanı', P.tani], ['İstenen', P.istenen],
+         ['Hasta sonuç', P.hastaSonuc], ['Doktor sonuç', P.doktorSonuc], ['Özellik', P.ozellik]].forEach(function (f) {
+          html += row(f[0], f[1], f[2]); text.push(f[0] + ': ' + dash(f[1]));
+        });
+        html += link(P.url, 'Poliklinik satır ' + P.row) + '</div>';
+      }
+      html += '</section>';
       copyTexts.push(text.join('\n'));
     });
     out.innerHTML = html;
