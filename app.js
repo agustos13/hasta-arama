@@ -362,7 +362,8 @@
     if (!lsGet(LS.hint)) {
       api('https://www.googleapis.com/oauth2/v3/userinfo').then(function (u) { if (u.email) lsSet(LS.hint, u.email); }).catch(function () {});
     }
-    loadData(false).then(function () { input.focus(); }, showError);
+    out.innerHTML = '';   // ilk yükleme durumu üstteki satırda ("Tablolar yükleniyor…") gösteriliyor
+    loadData(false).then(function () { if (!out.innerHTML) input.focus(); }, showError);
   }
   if (navigator.serviceWorker) navigator.serviceWorker.register('sw.js').catch(function () {});
   start();
