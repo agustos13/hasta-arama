@@ -76,6 +76,12 @@
     return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : NaN;
   }
 
+  /** Tarih bugünden sonra mı (planlanmış ameliyat)? */
+  function isFuture(s) {
+    var t = parseDate(s), now = new Date();
+    return !isNaN(t) && t > new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  }
+
   var NAMESAKES_N = null;
   function splitOf(x) {
     if (!NAMESAKES_N) { NAMESAKES_N = {}; Object.keys(NAMESAKES).forEach(function (k) { NAMESAKES_N[norm(k)] = NAMESAKES[k]; }); }
@@ -234,7 +240,7 @@
   /** Ameliyat olan hastanın, son ameliyat tarihinden SONRAKİ poliklinik gelişleri (protokol veya aynı isim). */
   function postOpVisits(g, polTable) {
     var lastOp = -Infinity;
-    g.hospitalList.forEach(function (h) { h.ops.forEach(function (o) { var t = parseDate(o.tarih); if (!isNaN(t) && t > lastOp) lastOp = t; }); });
+    g.hospitalList.forEach(function (h) { h.ops.forEach(function (o) { var t = parseDate(o.tarih); if (!isNaN(t) && !isFuture(o.tarih) && t > lastOp) lastOp = t; }); });
     if (lastOp === -Infinity || !polTable) return null;
     var protos = {};
     g.protocols.forEach(function (p) { var d = digits(p.p); if (d) protos[d] = 1; });
@@ -290,6 +296,6 @@
 
   root.HastaCore = {
     CONFIG: CONFIG, SOURCES: SOURCES, PLANNED: PLANNED, POLI: POLI,
-    norm: norm, digits: digits, buildTable: buildTable, search: search, konseyAccept: konseyAccept
+    norm: norm, digits: digits, isFuture: isFuture, buildTable: buildTable, search: search, konseyAccept: konseyAccept
   };
 })(typeof window !== 'undefined' ? window : globalThis);

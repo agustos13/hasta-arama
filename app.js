@@ -234,19 +234,33 @@
           var ops = h.ops, multi = ops.length > 1;
           html += '<div class="op">';
           if (!multi) {
-            var o = ops[0];
-            html += '<p class="lead">Hasta <b>' + esc(h.code) + '</b>’ta <b>' + esc(dash(o.tarih)) + '</b> tarihinde ameliyat olmuştur.</p>' +
+            var o = ops[0], fut = C.isFuture(o.tarih);
+            html += '<p class="lead">' + (fut ? 'Hastanın <b>' : 'Hasta <b>') + esc(h.code) + '</b>’ta <b>' + esc(dash(o.tarih)) + '</b> tarihinde ' +
+              (fut ? 'ameliyatı planlanmıştır.' : 'ameliyat olmuştur.') + '</p>' +
               row('Tanı', o.tani) + row('Ameliyat', o.islem) + row('Doktor', o.doktor) + row('Özellikler', o.ozellik) + link(o.url, h.code + ' satır ' + o.row);
-            text.push('', 'Hasta ' + h.code + '\'ta ' + dash(o.tarih) + ' tarihinde ameliyat olmuştur.',
+            text.push('', (fut ? 'Hastanın ' : 'Hasta ') + h.code + '\'ta ' + dash(o.tarih) + ' tarihinde ' + (fut ? 'ameliyatı planlanmıştır.' : 'ameliyat olmuştur.'),
               'Tanı: ' + dash(o.tani), 'Ameliyat: ' + dash(o.islem), 'Doktor: ' + dash(o.doktor), 'Özellikler: ' + dash(o.ozellik));
           } else {
-            html += '<p class="lead">Hasta <b>' + esc(h.code) + '</b>’ta <b>' + ops.length + '</b> kere ameliyat olmuştur.</p>';
-            text.push('', 'Hasta ' + h.code + '\'ta ' + ops.length + ' kere ameliyat olmuştur.');
+            var nFut = ops.filter(function (op) { return C.isFuture(op.tarih); }).length, nPast = ops.length - nFut;
+            var leadH, leadT;
+            if (!nFut) {
+              leadH = 'Hasta <b>' + esc(h.code) + '</b>’ta <b>' + ops.length + '</b> kere ameliyat olmuştur.';
+              leadT = 'Hasta ' + h.code + '\'ta ' + ops.length + ' kere ameliyat olmuştur.';
+            } else if (!nPast) {
+              leadH = 'Hastanın <b>' + esc(h.code) + '</b>’ta <b>' + nFut + '</b> ameliyatı planlanmıştır.';
+              leadT = 'Hastanın ' + h.code + '\'ta ' + nFut + ' ameliyatı planlanmıştır.';
+            } else {
+              leadH = 'Hasta <b>' + esc(h.code) + '</b>’ta <b>' + nPast + '</b> kere ameliyat olmuştur, <b>' + nFut + '</b> ameliyatı daha planlanmıştır.';
+              leadT = 'Hasta ' + h.code + '\'ta ' + nPast + ' kere ameliyat olmuştur, ' + nFut + ' ameliyatı daha planlanmıştır.';
+            }
+            html += '<p class="lead">' + leadH + '</p>';
+            text.push('', leadT);
             ops.forEach(function (op, n) {
+              var f = C.isFuture(op.tarih);
               html += '<div class="sub"><div class="subn">' + (n + 1) + '.</div><div class="subb">' +
-                row('Tarih', op.tarih, true) + row('Tanı', op.tani) + row('Ameliyat', op.islem) + row('Doktor', op.doktor) + row('Özellikler', op.ozellik) +
+                row(f ? 'Planlanan tarih' : 'Tarih', op.tarih, true) + row('Tanı', op.tani) + row('Ameliyat', op.islem) + row('Doktor', op.doktor) + row('Özellikler', op.ozellik) +
                 link(op.url, h.code + ' satır ' + op.row) + '</div></div>';
-              text.push((n + 1) + ') ' + dash(op.tarih) + ' – ' + dash(op.tani) + ' – ' + dash(op.islem) + ' – ' + dash(op.doktor) + ' – ' + dash(op.ozellik));
+              text.push((n + 1) + ') ' + dash(op.tarih) + (f ? ' (planlanan)' : '') + ' – ' + dash(op.tani) + ' – ' + dash(op.islem) + ' – ' + dash(op.doktor) + ' – ' + dash(op.ozellik));
             });
           }
           html += '</div>';
