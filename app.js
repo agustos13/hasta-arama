@@ -4,7 +4,7 @@
   var C = window.HastaCore;
 
   // ---- AYAR: Google Cloud'da oluşturulan OAuth istemci kimliği ----------------
-  var CLIENT_ID = 'BURAYA_OAUTH_CLIENT_ID.apps.googleusercontent.com';
+  var CLIENT_ID = '351276444427-76irpehjgjrndivhhi5qo9m0f3im6jov.apps.googleusercontent.com';
   // ---------------------------------------------------------------------------
   var SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets.readonly',
