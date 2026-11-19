@@ -85,17 +85,21 @@
   function loadData(force) {
     if (!force && tables && Date.now() - loadedAt < DATA_MAX_AGE) return Promise.resolve(tables);
     if (loading) return loading;
-    var id = C.CONFIG.SPREADSHEET_ID, srcs = C.SOURCES.concat([C.PLANNED, C.POLI]);
+    var id = C.CONFIG.SPREADSHEET_ID, srcs = C.SOURCES.concat(C.PLANNED, C.POLI);
     setStatus('Tablolar yükleniyor…');
     loading = api('https://sheets.googleapis.com/v4/spreadsheets/' + id + '?fields=sheets.properties(sheetId,title)')
       .then(function (meta) {
-        var gid = {};
-        (meta.sheets || []).forEach(function (s) { gid[s.properties.title] = s.properties.sheetId; });
-        var qs = srcs.map(function (s) { return 'ranges=' + encodeURIComponent("'" + s.sheet + "'!A1:" + s.lastCol); }).join('&');
+        // Sekmeler kimlikle (gid) bulunur: ad değişse de güncel adı buradan alınır
+        var title = {}, gidOf = {};
+        (meta.sheets || []).forEach(function (s) { title[s.properties.sheetId] = s.properties.title; gidOf[s.properties.title] = s.properties.sheetId; });
+        var missing = srcs.filter(function (s) { return !title[s.gid] && gidOf[s.sheet] === undefined; });
+        if (missing.length) throw new Error('Tabloda bu sekme bulunamadı: ' + missing.map(function (s) { return s.sheet; }).join(', '));
+        srcs.forEach(function (s) { s.title = title[s.gid] || s.sheet; s.gidNow = title[s.gid] ? s.gid : gidOf[s.sheet]; });
+        var qs = srcs.map(function (s) { return 'ranges=' + encodeURIComponent("'" + s.title.replace(/'/g, "''") + "'!A1:" + s.lastCol); }).join('&');
         return api('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values:batchGet?' + qs + '&valueRenderOption=FORMATTED_VALUE')
           .then(function (res) {
             var t = {};
-            srcs.forEach(function (s, i) { t[s.code] = C.buildTable(s, (res.valueRanges[i] || {}).values, gid[s.sheet]); });
+            srcs.forEach(function (s, i) { t[s.code] = C.buildTable(s, (res.valueRanges[i] || {}).values, s.gidNow); });
             tables = t; loadedAt = Date.now();
             showUpdated();
             return t;
@@ -216,6 +220,31 @@
   }
   function link(url, label) { return '<a class="rowlink" href="' + esc(url) + '" target="_blank" rel="noopener">Tabloda aç (' + label + ') ↗</a>'; }
 
+  // Hastaneye göre sayılar: "KUH 3, AH 2"
+  function hospCounts(c) {
+    return ['KUH', 'AH'].filter(function (h) { return c[h]; }).map(function (h) { return h + ' ' + c[h]; }).join(', ');
+  }
+  // "Hasta (ameliyattan sonra) polikliniğe N kez gelmiştir (KUH 3, AH 2). Son geliş (AH):"
+  function poliLead(count, byHosp, L, postOp, asHtml) {
+    var b = function (x) { return asHtml ? '<b>' + esc(String(x)) + '</b>' : String(x); };
+    var one = Object.keys(byHosp).length === 1;
+    return 'Hasta ' + (postOp ? 'ameliyattan sonra ' : '') + (one ? b(L.hosp) + ' ' : '') + 'polikliniğe ' + b(count) + ' kez gelmiştir' +
+      (one ? '' : ' (' + hospCounts(byHosp) + ')') + '. Son geliş' + (one ? '' : ' (' + b(L.hosp) + ')') + ':';
+  }
+  function planFields(L, name) {
+    if (L.hosp === 'AH') return [['Tarih', L.tarih, true], ['İsim', name], ['Planlanan ameliyat', L.planlanan], ['Doktor', L.doktor],
+      ['Kabul etti mi', L.kabul], ['Ameliyat tarihi', L.ameliyatTarihi], ['Ameliyat yeri', L.yer], ['Not', L.not]];
+    return [['Tarih', L.tarih, true], ['İsim', name], ['Tanı', L.tani], ['Planlanan ameliyat', L.planlanan],
+      ['Doktor', L.doktor], ['Kabul etti mi', L.kabul], ['Not', L.not]];
+  }
+  function poliFields(L, name) {
+    var f = L.hosp === 'AH'
+      ? [['Tarih', L.tarih, true], ['İsim', name], ['Doktor', L.doktor], ['Randevu türü', L.randevu], ['Karar', L.karar], ['Notlar', L.not]]
+      : [['Tarih', L.tarih, true], ['İsim', name], ['Doktor', L.doktor], ['Tanı', L.tani], ['İstenen', L.istenen],
+         ['Hasta sonuç', L.hastaSonuc], ['Doktor sonuç', L.doktorSonuc], ['Özellik', L.ozellik]];
+    return name === null ? f.filter(function (x) { return x[0] !== 'İsim'; }) : f;
+  }
+
   function render(res, q) {
     copyTexts = [];
     if (!res.patients.length) {
@@ -278,21 +307,20 @@
           html += '</div>';
         });
       } else {
-        var L = p.latest, fields;
+        var L = p.latest, fields = res.mode === 'planned' ? planFields(L, p.name) : poliFields(L, p.name);
+        var by = hospCounts(p.byHosp);
         if (res.mode === 'planned') {
-          html += '<div class="op"><p class="lead">Hasta <b>ameliyat planlama</b> listesinde' +
-            (p.count > 1 ? ' <b>' + p.count + '</b> kez kayıtlı (son kayıt gösteriliyor).' : ' kayıtlı.') + '</p>';
-          text.push('', 'Ameliyat planlama listesinde' + (p.count > 1 ? ' ' + p.count + ' kez kayıtlı (son kayıt):' : ' kayıtlı:'));
-          fields = [['Tarih', L.tarih, true], ['İsim', p.name], ['Tanı', L.tani], ['Planlanan ameliyat', L.planlanan],
-                    ['Doktor', L.doktor], ['Kabul etti mi', L.kabul], ['Not', L.not]];
+          var one = Object.keys(p.byHosp).length === 1;
+          html += '<div class="op"><p class="lead">Hasta ' + (one ? '<b>' + esc(L.hosp) + '</b> ' : '') + '<b>ameliyat planlama</b> listesinde' +
+            (p.count > 1 ? ' <b>' + p.count + '</b> kez kayıtlı' + (one ? '' : ' (' + by + ')') + '. Son kayıt' + (one ? '' : ' (<b>' + esc(L.hosp) + '</b>)') + ':' : ' kayıtlı.') + '</p>';
+          text.push('', 'Hasta ' + (one ? L.hosp + ' ' : '') + 'ameliyat planlama listesinde' +
+            (p.count > 1 ? ' ' + p.count + ' kez kayıtlı' + (one ? '' : ' (' + by + ')') + '. Son kayıt' + (one ? '' : ' (' + L.hosp + ')') + ':' : ' kayıtlı:'));
         } else {
-          html += '<div class="op"><p class="lead">Hasta polikliniğe <b>' + p.count + '</b> kez gelmiştir. Son geliş:</p>';
-          text.push('', 'Hasta polikliniğe ' + p.count + ' kez gelmiştir. Son geliş:');
-          fields = [['Tarih', L.tarih, true], ['İsim', p.name], ['Doktor', L.doktor], ['Tanı', L.tani], ['İstenen', L.istenen],
-                    ['Hasta sonuç', L.hastaSonuc], ['Doktor sonuç', L.doktorSonuc], ['Özellik', L.ozellik]];
+          html += '<div class="op"><p class="lead">' + poliLead(p.count, p.byHosp, L, false, true) + '</p>';
+          text.push('', poliLead(p.count, p.byHosp, L, false, false));
         }
         fields.forEach(function (f) { html += row(f[0], f[1], f[2]); text.push(f[0] + ': ' + dash(f[1])); });
-        html += link(L.url, (res.mode === 'planned' ? 'Ameliyat' : 'Poliklinik') + ' satır ' + L.row) + '</div>';
+        html += link(L.url, L.hosp + (res.mode === 'planned' ? ' ameliyat planlama' : ' poliklinik') + ' satır ' + L.row) + '</div>';
       }
       html += '<div class="op"><div class="row"><div class="k">Konsey sonucu</div><div class="v">' + konseyHtml(p.konsey) + '</div></div></div>';
       var k = p.konsey || [];
@@ -300,13 +328,10 @@
       k.forEach(function (f) { text.push(f.name + ': ' + f.url); });
       if (res.mode === 'surgery' && p.postOp) {
         var P = p.postOp.latest;
-        html += '<div class="op"><p class="lead">Hasta ameliyattan sonra polikliniğe <b>' + p.postOp.count + '</b> kez gelmiştir. Son geliş:</p>';
-        text.push('', 'Hasta ameliyattan sonra polikliniğe ' + p.postOp.count + ' kez gelmiştir. Son geliş:');
-        [['Tarih', P.tarih, true], ['Doktor', P.doktor], ['Tanı', P.tani], ['İstenen', P.istenen],
-         ['Hasta sonuç', P.hastaSonuc], ['Doktor sonuç', P.doktorSonuc], ['Özellik', P.ozellik]].forEach(function (f) {
-          html += row(f[0], f[1], f[2]); text.push(f[0] + ': ' + dash(f[1]));
-        });
-        html += link(P.url, 'Poliklinik satır ' + P.row) + '</div>';
+        html += '<div class="op"><p class="lead">' + poliLead(p.postOp.count, p.postOp.byHosp, P, true, true) + '</p>';
+        text.push('', poliLead(p.postOp.count, p.postOp.byHosp, P, true, false));
+        poliFields(P, null).forEach(function (f) { html += row(f[0], f[1], f[2]); text.push(f[0] + ': ' + dash(f[1])); });
+        html += link(P.url, P.hosp + ' poliklinik satır ' + P.row) + '</div>';
       }
       html += '</section>';
       copyTexts.push(text.join('\n'));

@@ -9,17 +9,29 @@
     MAX_PATIENTS: 20,
     KONSEY_LOOKUP_LIMIT: 8
   };
-  // Ameliyat kayıtları: her hastane bir kaynak. Sütun: başlık adı ya da BÜYÜK harf (ör. 'D').
+  // Sayfalar kalıcı kimlikleriyle (gid) bulunur; sekme adı değişse de çalışır.
+  // Sütun: başlık adı ya da BÜYÜK harf (ör. 'D').
+  // Ameliyat kayıtları: her hastane bir kaynak.
   var SOURCES = [
-    { code: 'KUH', sheet: 'KUH', lastCol: 'M',
+    { code: 'KUH', hosp: 'KUH', gid: 662116908, sheet: 'KUH', lastCol: 'M',
       cols: { tarih: 'tarih', protokol: 'protokol', ad: 'adı soyadı', tani: 'tanı', islem: 'işlem', doktor: 'isim', ozellik: 'Özellikler' } },
-    { code: 'AH', sheet: 'AH', lastCol: 'L',
+    { code: 'AH', hosp: 'AH', gid: 1643159071, sheet: 'AH', lastCol: 'L',
       cols: { tarih: 'B', protokol: 'C', ad: 'D', tani: 'E', islem: 'F', doktor: 'H', ozellik: 'L' } }
   ];
-  var PLANNED = { code: 'PLAN', sheet: 'Ameliyat', lastCol: 'M',
-    cols: { tarih: 'B', protokol: 'C', ad: 'D', doktor: 'E', tani: 'G', planlanan: 'H', kabul: 'J', not: 'M' } };
-  var POLI = { code: 'POL', sheet: 'Poliklinik', lastCol: 'L',
-    cols: { tarih: 'B', protokol: 'C', ad: 'D', doktor: 'E', tani: 'H', istenen: 'I', hastaSonuc: 'J', doktorSonuc: 'K', ozellik: 'L' } };
+  // Ameliyat planlama listeleri
+  var PLANNED = [
+    { code: 'PLAN_KUH', hosp: 'KUH', gid: 809604028, sheet: 'KUH Ameliyat', lastCol: 'M',
+      cols: { tarih: 'B', protokol: 'C', ad: 'D', doktor: 'E', tani: 'G', planlanan: 'H', kabul: 'J', not: 'M' } },
+    { code: 'PLAN_AH', hosp: 'AH', gid: 188292691, sheet: 'AH ameliyat', lastCol: 'L',
+      cols: { protokol: 'B', tarih: 'C', ad: 'D', doktor: 'E', planlanan: 'G', kabul: 'H', ameliyatTarihi: 'I', yer: 'J', not: 'L' } }
+  ];
+  // Poliklinik listeleri
+  var POLI = [
+    { code: 'POL_KUH', hosp: 'KUH', gid: 5459645, sheet: 'KUH Poliklinik', lastCol: 'L',
+      cols: { tarih: 'B', protokol: 'C', ad: 'D', doktor: 'E', tani: 'H', istenen: 'I', hastaSonuc: 'J', doktorSonuc: 'K', ozellik: 'L' } },
+    { code: 'POL_AH', hosp: 'AH', gid: 1947900112, sheet: 'AH Poliklinik', lastCol: 'J',
+      cols: { protokol: 'B', tarih: 'C', ad: 'D', doktor: 'E', randevu: 'G', karar: 'I', not: 'J' } }
+  ];
   // Aynı ad soyadlı farklı hastalar: önce protokol, yoksa tarih ('until' dahil) ile ayrılır.
   var NAMESAKES = {
     'hasan eker': [
@@ -62,7 +74,7 @@
       var name = String(row[c.ad] || '').replace(/\s+/g, ' ').trim();
       var proto = String(row[c.protokol] || '').trim();
       if (!name && !proto) continue;
-      var rec = { row: i + 1, url: base + (i + 1) };
+      var rec = { row: i + 1, url: base + (i + 1), hosp: src.hosp || src.code };
       Object.keys(c).forEach(function (k) { if (k !== 'ad' && k !== 'protokol') rec[k] = row[c[k]] || ''; });
       rows.push({ name: name, nn: norm(name), proto: proto, pd: digits(proto), rec: rec });
     }
@@ -192,12 +204,12 @@
       });
     });
     out.sort(function (a, b) { return a.score - b.score; });
-    var WHERE = { KUH: 'KUH', AH: 'AH', PLAN: 'Ameliyat planlama', POL: 'Poliklinik' };
+    var WHERE = { KUH: 'KUH', AH: 'AH', PLAN_KUH: 'KUH ameliyat planlama', PLAN_AH: 'AH ameliyat planlama', POL_KUH: 'KUH poliklinik', POL_AH: 'AH poliklinik' };
     return out.slice(0, 6).map(function (s) { return { name: s.name, proto: s.proto, where: WHERE[s.where] }; });
   }
 
   /**
-   * Ana arama. tables = { KUH, AH, PLAN, POL } (buildTable çıktıları).
+   * Ana arama. tables = { KUH, AH, PLAN_KUH, PLAN_AH, POL_KUH, POL_AH } (buildTable çıktıları).
    * findKonsey(protocol, name, loose) → Promise<[{name,url}]> dışarıdan verilir (Drive API).
    */
   function search(query, tables, findKonsey) {
@@ -206,7 +218,9 @@
     var compact = q.replace(/[\s\-\/.]/g, '');
     var m = { isProtocol: /^\d+$/.test(compact), compact: compact, qd: compact.replace(/^0+/, ''), tokens: norm(q).split(' ').filter(String) };
     var surgery = SOURCES.map(function (s) { return tables[s.code]; });
-    var all = surgery.concat([tables.PLAN, tables.POL]);
+    var plan = PLANNED.map(function (s) { return tables[s.code]; });
+    var poli = POLI.map(function (s) { return tables[s.code]; });
+    var all = surgery.concat(plan, poli);
 
     var idNames = null;
     if (m.isProtocol) {
@@ -219,17 +233,17 @@
     if (r.order.length) {
       return finish(r, function (g) {
         g.hospitalList = SOURCES.filter(function (s) { return g.items[s.code]; }).map(function (s) { return { code: s.code, ops: g.items[s.code] }; });
-        g.postOp = postOpVisits(g, tables.POL);
+        g.postOp = postOpVisits(g, poli);
       }, extra, findKonsey).then(function (p) { return { mode: 'surgery', patients: p, total: r.order.length }; });
     }
-    r = groupMatches([tables.PLAN], m, idNames);
+    r = groupMatches(plan, m, idNames);
     if (r.order.length) {
-      return finish(r, function (g) { var l = g.items.PLAN; g.count = l.length; g.latest = latest(l); }, extra, findKonsey)
+      return finish(r, function (g) { summarize(g, PLANNED); }, extra, findKonsey)
         .then(function (p) { return { mode: 'planned', patients: p, total: r.order.length }; });
     }
-    r = groupMatches([tables.POL], m, idNames);
+    r = groupMatches(poli, m, idNames);
     if (r.order.length) {
-      return finish(r, function (g) { var l = g.items.POL; g.count = l.length; g.latest = latest(l); }, extra, findKonsey)
+      return finish(r, function (g) { summarize(g, POLI); }, extra, findKonsey)
         .then(function (p) { return { mode: 'poli', patients: p, total: r.order.length }; });
     }
     return findKonsey(m.isProtocol ? compact : '', m.isProtocol ? '' : q, true).then(function (k) {
@@ -238,20 +252,34 @@
   }
 
   /** Ameliyat olan hastanın, son ameliyat tarihinden SONRAKİ poliklinik gelişleri (protokol veya aynı isim). */
-  function postOpVisits(g, polTable) {
+  function postOpVisits(g, polTables) {
     var lastOp = -Infinity;
     g.hospitalList.forEach(function (h) { h.ops.forEach(function (o) { var t = parseDate(o.tarih); if (!isNaN(t) && !isFuture(o.tarih) && t > lastOp) lastOp = t; }); });
-    if (lastOp === -Infinity || !polTable) return null;
+    if (lastOp === -Infinity) return null;
     var protos = {};
     g.protocols.forEach(function (p) { var d = digits(p.p); if (d) protos[d] = 1; });
-    var list = polTable.rows.filter(function (x) {
+    var rows = [];
+    (polTables || []).forEach(function (t) { if (t) rows = rows.concat(t.rows); });
+    var list = rows.filter(function (x) {
       var mine = (x.pd && protos[x.pd]) || (x.nn.length >= 3 && g.nns[x.nn]);
       if (!mine) return false;
       if (g.splitIdx >= 0 && x.nn === g.splitNn && splitOf(x).idx !== g.splitIdx) return false;
       var t = parseDate(x.rec.tarih);
       return !isNaN(t) && t > lastOp;
     }).map(function (x) { return x.rec; });
-    return list.length ? { count: list.length, latest: latest(list) } : null;
+    return list.length ? { count: list.length, latest: latest(list), byHosp: countByHosp(list) } : null;
+  }
+
+  function countByHosp(list) {
+    var c = {};
+    list.forEach(function (r) { c[r.hosp] = (c[r.hosp] || 0) + 1; });
+    return c;
+  }
+  /** Planlama/poliklinik grubu: toplam sayı, hastaneye göre sayı ve en son kayıt. */
+  function summarize(g, srcs) {
+    var list = [];
+    srcs.forEach(function (s) { if (g.items[s.code]) list = list.concat(g.items[s.code]); });
+    g.count = list.length; g.latest = latest(list); g.byHosp = countByHosp(list);
   }
 
   function finish(r, shape, extraProto, findKonsey) {
@@ -260,7 +288,7 @@
       shape(g);
       delete g.items;
       if (extraProto && !g.protocols.some(function (p) { return digits(p.p) === digits(extraProto); })) g.protocols.unshift({ h: '', p: extraProto });
-      g.protocols.forEach(function (p) { if (p.h === 'PLAN' || p.h === 'POL') p.h = ''; });
+      g.protocols.forEach(function (p) { if (/^(PLAN|POL)/.test(p.h)) p.h = ''; });
       var splitNn = g.splitNn, splitIdx = g.splitIdx;
       delete g.splitNn; delete g.splitIdx; delete g.nns;
       if (idx >= CONFIG.KONSEY_LOOKUP_LIMIT) { g.konsey = null; return Promise.resolve(g); }
