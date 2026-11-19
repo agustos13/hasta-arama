@@ -211,7 +211,7 @@
 
   function konseyHtml(list) {
     if (list === null) return '<span class="pill no">Aramayı daraltın</span>';
-    if (!list.length) return '<span class="pill no">Yok</span>';
+    if (!list.length) return '<span class="pill no">Bulunamadı</span>';
     return '<span class="pill yes">Var' + (list.length > 1 ? ' (' + list.length + ')' : '') + '</span><div class="files">' +
       list.map(function (f) { return '<a href="' + esc(f.url) + '" target="_blank" rel="noopener">📄 ' + esc(f.name) + '</a>'; }).join('') + '</div>';
   }
@@ -339,7 +339,7 @@
       }
       html += '<div class="op"><div class="row"><div class="k">Konsey sonucu</div><div class="v">' + konseyHtml(p.konsey) + '</div></div></div>';
       var k = p.konsey || [];
-      text.push('', 'Konsey sonucu: ' + (k.length ? 'Var' + (k.length > 1 ? ' (' + k.length + ')' : '') : 'Yok'));
+      text.push('', 'Konsey sonucu: ' + (k.length ? 'Var' + (k.length > 1 ? ' (' + k.length + ')' : '') : 'Bulunamadı'));
       k.forEach(function (f) { text.push(f.name + ': ' + f.url); });
       if (res.mode === 'surgery' && p.postOp) {
         var P = p.postOp.latest;
