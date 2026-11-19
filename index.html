@@ -57,6 +57,13 @@
   .warn { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 15px; margin: 0 0 12px; }
   .count { color: var(--muted); font-size: 14px; margin: 0 0 10px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 14px; padding: 14px 16px; }
+  /* Hastaneye göre kart rengi: AH mavi, KUH bordo (en son gidilen hastane) */
+  .card.ah { --card: #d2e3f8; --line: rgba(20,40,80,.12); border-color: #b9d0ee; }
+  .card.kuh { --card: #eed2d9; --line: rgba(80,20,35,.12); border-color: #e0b8c2; }
+  @media (prefers-color-scheme: dark) {
+    .card.ah { --card: #1d3150; --line: rgba(255,255,255,.1); border-color: #2a4468; }
+    .card.kuh { --card: #45222d; --line: rgba(255,255,255,.1); border-color: #5e2f3d; }
+  }
   .login { text-align: center; padding: 28px 20px; }
   .big { padding: 14px 22px; width: 100%; margin: 6px 0 10px; }
   .small { color: var(--muted); font-size: 13px; }
@@ -105,7 +112,7 @@
   <div id="status"></div>
 </header>
 <main id="out"><div class="status"><div class="spinner"></div>Yükleniyor…</div></main>
-<script src="core.js?v=7"></script>
-<script src="app.js?v=7"></script>
+<script src="core.js?v=8"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

@@ -324,6 +324,6 @@
 
   root.HastaCore = {
     CONFIG: CONFIG, SOURCES: SOURCES, PLANNED: PLANNED, POLI: POLI,
-    norm: norm, digits: digits, isFuture: isFuture, buildTable: buildTable, search: search, konseyAccept: konseyAccept
+    norm: norm, digits: digits, isFuture: isFuture, parseDate: parseDate, buildTable: buildTable, search: search, konseyAccept: konseyAccept
   };
 })(typeof window !== 'undefined' ? window : globalThis);

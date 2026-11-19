@@ -245,6 +245,20 @@
     return name === null ? f.filter(function (x) { return x[0] !== 'İsim'; }) : f;
   }
 
+  // Kart rengi için en son gidilen hastane: ameliyat varsa en son (yapılmış) ameliyat, yoksa son planlama/poliklinik kaydı
+  function lastHosp(p, mode) {
+    if (mode !== 'surgery') return p.latest && p.latest.hosp;
+    var best = null, bestT = -Infinity, anyT = -Infinity, any = null;
+    p.hospitalList.forEach(function (h) {
+      h.ops.forEach(function (o) {
+        var t = C.parseDate(o.tarih); if (isNaN(t)) t = -1e15;
+        if (t >= anyT) { anyT = t; any = h.code; }
+        if (!C.isFuture(o.tarih) && t >= bestT) { bestT = t; best = h.code; }
+      });
+    });
+    return best || any;
+  }
+
   function render(res, q) {
     copyTexts = [];
     if (!res.patients.length) {
@@ -265,7 +279,8 @@
     res.patients.forEach(function (p, i) {
       var text = [];
       var protoTxt = p.protocols.map(function (x) { return (x.h ? x.h + ' ' : '') + x.p; }).join(' · ');
-      html += '<section class="card"><div class="head"><div><div class="name">' + esc(p.name || '(ad yok)') + '</div>' +
+      var hc = lastHosp(p, res.mode);
+      html += '<section class="card' + (hc ? ' ' + hc.toLowerCase() : '') + '"><div class="head"><div><div class="name">' + esc(p.name || '(ad yok)') + '</div>' +
         (protoTxt ? '<div class="proto">Protokol: ' + esc(protoTxt) + '</div>' : '') +
         '</div><button class="copy" data-i="' + i + '">Kopyala</button></div>';
       text.push(p.name + (protoTxt ? ' (' + protoTxt + ')' : ''));
